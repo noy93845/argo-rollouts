@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"google.golang.org/api/option"
 	"net"
 	"net/http"
 	"net/url"
@@ -24,6 +25,7 @@ import (
 	"github.com/argoproj/argo-rollouts/utils/evaluate"
 	metricutil "github.com/argoproj/argo-rollouts/utils/metric"
 	timeutil "github.com/argoproj/argo-rollouts/utils/time"
+	googlehttp "google.golang.org/api/transport/http"
 )
 
 const (
@@ -260,6 +262,21 @@ func NewPrometheusAPI(metric v1alpha1.Metric) (v1.API, error) {
 			headers:      customHeaders,
 			roundTripper: roundTripper,
 		}
+	}
+
+	//Check if using Google Managed Prometheus if true build google client
+	if strings.HasPrefix(metric.Provider.Prometheus.Address, "https://monitoring.googleapis.com/") {
+		opts := []option.ClientOption{
+			option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
+		}
+
+		googleRoundTripper, err := googlehttp.NewTransport(context.Background(), http.DefaultTransport, opts...)
+		if err != nil {
+			//nolint:errcheck
+			return nil, err
+		}
+
+		roundTripper = googleRoundTripper
 	}
 
 	//Check if using Amazon Managed Prometheus if true build sigv4 client
